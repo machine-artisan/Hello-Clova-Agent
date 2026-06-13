@@ -124,11 +124,91 @@ cp .env.example .env
 >
 > ```bash
 > # Think-14B 실행 (vLLM + 4-bit 양자화)
-> LLM_MODEL=naver-hyperclovax/HyperCLOVA-X-SEED-Think-14B \
+> LLM_MODEL=naver-hyperclovax/HyperCLOVAX-SEED-Think-14B \
 > LLM_QUANTIZATION=bitsandbytes \
 > LLM_DTYPE=bfloat16 \
 > bash setup/start_vllm.sh
 > ```
+
+---
+
+## HyperCLOVA X SEED Think-14B 운영 가이드
+
+### Qwen(Ollama) 대비 복잡성이 높은 이유
+
+Qwen은 Ollama가 CUDA·드라이버·모델 형식을 모두 추상화합니다.  
+HCX Think-14B는 vLLM을 직접 사용해야 하므로 시스템 레벨 의존성이 노출됩니다.
+
+| 항목 | Qwen 2.5-7B (Ollama) | HCX Think-14B (vLLM) |
+|------|----------------------|----------------------|
+| 설치 | `ollama pull qwen2.5:7b` 한 줄 | transformers + vLLM + bitsandbytes |
+| CUDA 의존성 | Ollama 내부 처리 (노출 안 됨) | `libcudart.so.13` SONAME 직접 의존 |
+| Colab CUDA 불일치 | 영향 없음 | **libcudart.so.13 누락 → ImportError** |
+| transformers 버전 | 관계없음 | **>=5.9.0 필수** (미충족 시 ProcessorMixin 에러) |
+| 모델 ID 주의 | 단순 (`qwen2.5:7b`) | `HyperCLOVAX` (대시 없음, 오타 주의) |
+| pip 충돌 경고 | 없음 | Colab 사전설치 패키지와 충돌 (무해하지만 노이즈) |
+| 모델 로딩 시간 | ~5분 | ~15-25분 (4-bit 변환 포함) |
+| 메모리 | ~4.7 GB | ~8-10 GB (4-bit 양자화) |
+
+### 실제 발생한 에러와 근본 원인
+
+#### 1. `ImportError: libcudart.so.13: cannot open shared object file`
+
+```
+원인: PyPI의 Python 3.12용 vLLM 휠은 CUDA 13 으로 컴파일됩니다.
+      Colab T4 환경에는 libcudart.so.12 만 존재하며 .13 이 없습니다.
+      버전 핀(vllm<0.9.0)으로도 해결 불가 — 모든 휠이 동일하게 영향받음.
+
+해결: libcudart.so.12 → libcudart.so.13 심볼릭 링크 생성
+      (CUDA 런타임 API는 기본 추론 범위에서 12→13 호환)
+      노트북 셀 1에서 자동 처리됩니다.
+```
+
+#### 2. `ModuleNotFoundError: Could not import module 'ProcessorMixin'`
+
+```
+원인: HCX Think-14B README에 명시된 transformers>=5.9.0 이 미설치 상태.
+      Colab 기본 transformers 버전이 요구사항 미달.
+
+해결: pip install transformers>=5.9.0 을 vLLM 설치 전에 실행.
+      순서 중요 — 나중에 설치하면 vLLM이 구버전 API로 초기화됨.
+```
+
+#### 3. 모델 ID 오타 → 401 Unauthorized
+
+```
+틀린 ID: naver-hyperclovax/HyperCLOVA-X-SEED-Think-14B  ← 하이픈 있음
+올바른 ID: naver-hyperclovax/HyperCLOVAX-SEED-Think-14B  ← HyperCLOVAX
+
+두 ID 모두 HuggingFace에 존재하는 것처럼 보이지만, 실제 모델은
+HyperCLOVAX (X 뒤에 하이픈 없음) 에만 있습니다.
+```
+
+#### 4. `ERROR: pip's dependency resolver ...` (무해, 무시 가능)
+
+```
+원인: vLLM이 starlette/opentelemetry 버전을 변경하면서
+      Colab 사전설치 패키지(google-adk, prometheus-fastapi-instrumentator)와
+      버전 충돌. ERROR 로 표시되지만 우리 패키지와는 무관합니다.
+
+확인법: langgraph / openai / gradio import 가 성공하면 정상.
+```
+
+### 재발 방지 체크리스트
+
+셀 1 실행 직후 아래 출력을 확인하세요.
+
+```
+✅ 의존성 설치 완료
+🔗 생성: /usr/local/cuda/lib64/libcudart.so.13 → libcudart.so.12   ← 반드시 확인
+✅ vLLM import 사전 검증 통과                                         ← 반드시 확인
+✅ vLLM 프로세스 시작 (PID: xxxxx)
+```
+
+`libcudart.so.13 생성` 과 `vLLM import 검증 통과` 가 나오면  
+셀 4 의 5분 대기에서 실패하지 않습니다.
+
+`import 검증 통과` 없이 서버를 시작하면 반드시 5분 후 실패합니다.
 
 ---
 
