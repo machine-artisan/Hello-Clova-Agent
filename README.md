@@ -248,6 +248,52 @@ vLLM이 starlette/opentelemetry 버전을 변경하면서 Colab 사전설치 패
 
 ---
 
+## 모델 로딩 대기 중 병렬 작업 가이드
+
+HyperCLOVA X SEED Think-14B는 첫 실행 시 **20~40분**이 소요됩니다.  
+셀 4가 대기 중인 동안 아래 방법으로 다른 작업을 병렬 진행하세요.
+
+### 왜 오래 걸리나?
+
+| 단계 | 소요 시간 | 설명 |
+|------|-----------|------|
+| 모델 다운로드 | ~20-30분 | HuggingFace에서 14B 모델 (~28GB) 수신 |
+| 4-bit 양자화 로딩 | ~5-10분 | BitsAndBytes가 VRAM에 올리며 int4 변환 |
+| 재실행 시 (캐시 있음) | ~5-10분 | 다운로드 생략, 로딩만 |
+
+> `Loading weights with BitsAndBytes quantization. May take a while...`  
+> 이 메시지가 나오면 정상입니다. 기다리세요.
+
+### 방법 1 — `git worktree` (코드 작업이 있을 때)
+
+같은 저장소를 다른 디렉토리에 동시 체크아웃합니다. 파일 충돌 없이 병렬 작업 가능합니다.
+
+```bash
+# 새 작업용 독립 디렉토리 생성 (feature 브랜치 자동 생성)
+git worktree add ../hello-clova-other feature/my-feature
+
+# 작업 완료 후 정리
+git worktree remove ../hello-clova-other
+```
+
+### 방법 2 — `gh` CLI (GitHub 이슈·PR 작업)
+
+로컬 파일을 건드리지 않으므로 어느 상태에서든 실행 가능합니다.
+
+```bash
+gh issue list                                      # 이슈 목록
+gh issue create --title "..." --body "..."         # 이슈 등록
+gh issue comment <번호> --body "..."               # 코멘트
+gh pr create --title "..." --base main             # PR 생성
+```
+
+### 방법 3 — Google Drive 모델 캐시 (다음 세션부터 빠르게)
+
+`Hello_Clova_Agent_HCX14B_Colab.ipynb` 셀 0(Drive 마운트)을 실행하면  
+모델을 Drive에 저장해 다음 세션부터 재다운로드 없이 시작됩니다.
+
+---
+
 ## 로드맵
 
 | Phase | 상태 | 주요 기능 |
