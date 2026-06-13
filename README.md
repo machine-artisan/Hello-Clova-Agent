@@ -132,83 +132,93 @@ cp .env.example .env
 
 ---
 
-## HyperCLOVA X SEED Think-14B 운영 가이드
+## HyperCLOVA X SEED 사용 시 유의사항
 
-### Qwen(Ollama) 대비 복잡성이 높은 이유
+> **이 섹션을 읽는 분께**
+>
+> 일반적인 LLM 서빙 환경(OpenAI API, Ollama 등)에서는 아래 내용이 필요하지 않습니다.
+> HyperCLOVA X SEED 모델은 Ollama 공식 레지스트리에 등록되어 있지 않아
+> vLLM을 통한 직접 서빙이 필요하며, 이 과정에서 시스템 레벨 의존성이 노출됩니다.
+>
+> **이 복잡성은 이 모델의 특성이지, LLM 서빙의 일반적인 모습이 아닙니다.**
+> 국산 LLM 사용 요건이 없다면 Qwen/Llama 계열 + Ollama 조합을 권장합니다.
 
-Qwen은 Ollama가 CUDA·드라이버·모델 형식을 모두 추상화합니다.  
-HCX Think-14B는 vLLM을 직접 사용해야 하므로 시스템 레벨 의존성이 노출됩니다.
+### 일반 LLM 서빙과의 차이
 
-| 항목 | Qwen 2.5-7B (Ollama) | HCX Think-14B (vLLM) |
-|------|----------------------|----------------------|
-| 설치 | `ollama pull qwen2.5:7b` 한 줄 | transformers + vLLM + bitsandbytes |
-| CUDA 의존성 | Ollama 내부 처리 (노출 안 됨) | `libcudart.so.13` SONAME 직접 의존 |
-| Colab CUDA 불일치 | 영향 없음 | **libcudart.so.13 누락 → ImportError** |
-| transformers 버전 | 관계없음 | **>=5.9.0 필수** (미충족 시 ProcessorMixin 에러) |
-| 모델 ID 주의 | 단순 (`qwen2.5:7b`) | `HyperCLOVAX` (대시 없음, 오타 주의) |
-| pip 충돌 경고 | 없음 | Colab 사전설치 패키지와 충돌 (무해하지만 노이즈) |
+대부분의 LLM(Qwen, Llama 등)은 Ollama를 통해 한 줄로 사용할 수 있습니다.
+
+```bash
+# 일반적인 LLM 서빙 — 이게 정상입니다
+ollama pull qwen2.5:7b   # 끝
+```
+
+HyperCLOVA X SEED는 Ollama 레지스트리에 없어 vLLM을 직접 사용해야 합니다.
+그 결과 아래 시스템 레벨 의존성이 모두 사용자에게 노출됩니다.
+
+| 항목 | 일반 LLM (Ollama) | HCX SEED Think-14B (vLLM) |
+|------|-------------------|---------------------------|
+| 설치 | `ollama pull` 한 줄 | transformers + vLLM + bitsandbytes 개별 설치 |
+| CUDA 의존성 | Ollama가 내부 처리 | `libcudart.so.13` SONAME 직접 의존 |
+| Colab 환경 충돌 | 없음 | libcudart 버전 불일치 → 심볼릭 링크 필요 |
+| Python 패키지 요구 | 없음 | `transformers>=5.9.0` 필수, 설치 순서 중요 |
+| 모델 ID | 직관적 | `HyperCLOVAX` (X 뒤 하이픈 없음) 오타 주의 |
+| pip 충돌 경고 | 없음 | Colab 사전 패키지와 충돌 경고 발생 (무해) |
 | 모델 로딩 시간 | ~5분 | ~15-25분 (4-bit 변환 포함) |
-| 메모리 | ~4.7 GB | ~8-10 GB (4-bit 양자화) |
 
-### 실제 발생한 에러와 근본 원인
+### 알려진 문제와 해결책
 
-#### 1. `ImportError: libcudart.so.13: cannot open shared object file`
+#### ❗ `ImportError: libcudart.so.13: cannot open shared object file`
 
 ```
-원인: PyPI의 Python 3.12용 vLLM 휠은 CUDA 13 으로 컴파일됩니다.
-      Colab T4 환경에는 libcudart.so.12 만 존재하며 .13 이 없습니다.
-      버전 핀(vllm<0.9.0)으로도 해결 불가 — 모든 휠이 동일하게 영향받음.
+원인: PyPI Python 3.12용 vLLM 휠이 CUDA 13으로 컴파일되어 있으나
+      Colab T4 환경에는 libcudart.so.12 만 존재합니다.
+      vLLM 버전을 낮춰도 해결되지 않습니다 — 모든 휠이 동일하게 영향받습니다.
 
 해결: libcudart.so.12 → libcudart.so.13 심볼릭 링크 생성
-      (CUDA 런타임 API는 기본 추론 범위에서 12→13 호환)
       노트북 셀 1에서 자동 처리됩니다.
 ```
 
-#### 2. `ModuleNotFoundError: Could not import module 'ProcessorMixin'`
+#### ❗ `ModuleNotFoundError: Could not import module 'ProcessorMixin'`
 
 ```
-원인: HCX Think-14B README에 명시된 transformers>=5.9.0 이 미설치 상태.
-      Colab 기본 transformers 버전이 요구사항 미달.
+원인: 이 모델은 transformers>=5.9.0 을 요구합니다.
+      Colab 기본 설치 버전이 이 요구사항을 충족하지 않습니다.
 
 해결: pip install transformers>=5.9.0 을 vLLM 설치 전에 실행.
-      순서 중요 — 나중에 설치하면 vLLM이 구버전 API로 초기화됨.
+      순서가 중요합니다 — 역순이면 vLLM이 구버전 API로 초기화됩니다.
 ```
 
-#### 3. 모델 ID 오타 → 401 Unauthorized
+#### ❗ 모델 ID → 401 Unauthorized 또는 다운로드 실패
 
 ```
-틀린 ID: naver-hyperclovax/HyperCLOVA-X-SEED-Think-14B  ← 하이픈 있음
-올바른 ID: naver-hyperclovax/HyperCLOVAX-SEED-Think-14B  ← HyperCLOVAX
+올바른 ID: naver-hyperclovax/HyperCLOVAX-SEED-Think-14B
+            (HyperCLOVAX — X 뒤에 하이픈 없음)
 
-두 ID 모두 HuggingFace에 존재하는 것처럼 보이지만, 실제 모델은
-HyperCLOVAX (X 뒤에 하이픈 없음) 에만 있습니다.
+틀린 ID:  naver-hyperclovax/HyperCLOVA-X-SEED-Think-14B
+            (HyperCLOVA-X — 자주 혼동되는 표기)
 ```
 
-#### 4. `ERROR: pip's dependency resolver ...` (무해, 무시 가능)
+#### ❗ `ERROR: pip's dependency resolver ...` (무해, 무시 가능)
 
 ```
-원인: vLLM이 starlette/opentelemetry 버전을 변경하면서
-      Colab 사전설치 패키지(google-adk, prometheus-fastapi-instrumentator)와
-      버전 충돌. ERROR 로 표시되지만 우리 패키지와는 무관합니다.
-
-확인법: langgraph / openai / gradio import 가 성공하면 정상.
+vLLM이 starlette/opentelemetry 버전을 변경하면서 Colab 사전설치 패키지
+(google-adk, prometheus-fastapi-instrumentator)와 충돌 경고가 발생합니다.
+이 프로젝트의 패키지(langgraph, gradio, openai)와는 무관합니다.
+셀 3에서 langgraph / openai / gradio import 가 ✅ 이면 정상입니다.
 ```
 
-### 재발 방지 체크리스트
+### 셀 1 정상 완료 확인
 
-셀 1 실행 직후 아래 출력을 확인하세요.
+아래 출력이 모두 나와야 셀 4(서버 대기)로 진행할 수 있습니다.
 
 ```
 ✅ 의존성 설치 완료
-🔗 생성: /usr/local/cuda/lib64/libcudart.so.13 → libcudart.so.12   ← 반드시 확인
-✅ vLLM import 사전 검증 통과                                         ← 반드시 확인
+🔗 생성: /usr/local/cuda/lib64/libcudart.so.13 → libcudart.so.12   ← 필수
+✅ vLLM import 사전 검증 통과                                         ← 필수
 ✅ vLLM 프로세스 시작 (PID: xxxxx)
 ```
 
-`libcudart.so.13 생성` 과 `vLLM import 검증 통과` 가 나오면  
-셀 4 의 5분 대기에서 실패하지 않습니다.
-
-`import 검증 통과` 없이 서버를 시작하면 반드시 5분 후 실패합니다.
+`vLLM import 사전 검증 통과` 없이 서버가 시작되었다면 셀 4에서 반드시 실패합니다.
 
 ---
 
