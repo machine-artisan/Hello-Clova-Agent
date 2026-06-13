@@ -231,8 +231,9 @@ with gr.Blocks(
 
 
 if __name__ == "__main__":
+    _share = os.environ.get("GRADIO_SHARE", "true").lower() not in ("false", "0", "no")
     demo.launch(
-        share=True,           # Colab 외부 접속용 공개 URL 생성
+        share=_share,
         server_port=7860,
         show_error=True,
     )
