@@ -31,9 +31,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
           │  (LLM 엔진)        │
           └────────────────────┘
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import os
 import time
-from pathlib import Path
 import gradio as gr
 from agent.graph import graph
 from agent.state import DeckState
