@@ -70,6 +70,19 @@ def generate_deck(prompt: str, progress=gr.Progress()):
             "입력 없음",
         )
 
+    llm_model = os.getenv("LLM_MODEL")
+    llm_base = os.getenv("LLM_API_BASE")
+    if not llm_model or not llm_base:
+        missing = ", ".join(
+            k for k, v in {"LLM_MODEL": llm_model, "LLM_API_BASE": llm_base}.items() if not v
+        )
+        return (
+            f"<p style='color:red'>❌ 환경변수 미설정: {missing}<br>"
+            "셀 3/6과 셀 5/6을 실행한 뒤 다시 시도하세요.</p>",
+            None,
+            f"오류: {missing} 미설정",
+        )
+
     progress(0, desc="Node 1: 입력 파싱 중...")
 
     initial_state: DeckState = {
