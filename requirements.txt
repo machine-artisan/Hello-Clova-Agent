@@ -1,0 +1,12 @@
+# LangGraph 에이전트 프레임워크
+langgraph>=0.2.0
+langchain-core>=0.3.0
+
+# LLM API 클라이언트 (OpenAI 호환)
+openai>=1.0.0
+
+# Gradio 웹 UI
+gradio>=4.44.0
+
+# 환경변수 관리
+python-dotenv>=1.0.0
