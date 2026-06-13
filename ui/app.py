@@ -85,7 +85,7 @@ def generate_deck(prompt: str, progress=gr.Progress()):
 
     # 스트리밍 방식: 각 노드 완료마다 progress 업데이트
     final_state = None
-    for i, (event_type, state_update) in enumerate(
+    for i, state_update in enumerate(
         graph.stream(initial_state, stream_mode="updates")
     ):
         node_name = list(state_update.keys())[0]
