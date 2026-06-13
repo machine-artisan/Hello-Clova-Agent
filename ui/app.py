@@ -85,16 +85,26 @@ def generate_deck(prompt: str, progress=gr.Progress()):
 
     # 스트리밍 방식: 각 노드 완료마다 progress 업데이트
     final_state = None
-    for i, state_update in enumerate(
-        graph.stream(initial_state, stream_mode="updates")
-    ):
-        node_name = list(state_update.keys())[0]
-        node_state = list(state_update.values())[0]
-        status_msg = node_state.get("status", "처리 중...")
+    try:
+        for i, state_update in enumerate(
+            graph.stream(initial_state, stream_mode="updates")
+        ):
+            node_name = list(state_update.keys())[0]
+            node_state = list(state_update.values())[0]
+            status_msg = node_state.get("status", "처리 중...")
 
-        progress_pct = (i + 1) / 4
-        progress(progress_pct, desc=status_msg)
-        final_state = node_state
+            progress_pct = (i + 1) / 4
+            progress(progress_pct, desc=status_msg)
+            final_state = node_state
+    except Exception as e:
+        if "Connection" in type(e).__name__ or "connection" in str(e).lower():
+            return (
+                "<p style='color:red'>❌ LLM 서버(Ollama)에 연결할 수 없습니다.<br>"
+                "셀 2/6을 실행하여 Ollama 서버를 시작한 뒤 다시 시도하세요.</p>",
+                None,
+                "오류: Ollama 미실행",
+            )
+        return f"<p style='color:red'>❌ {e}</p>", None, f"오류: {e}"
 
     if final_state is None:
         return "<p style='color:red'>파이프라인 실행 실패</p>", None, "오류"
