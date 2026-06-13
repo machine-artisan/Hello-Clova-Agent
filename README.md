@@ -111,12 +111,24 @@ cp .env.example .env
 
 ## 지원 모델
 
-| 모델 | VRAM | 권장 환경 |
-|------|------|-----------|
-| HyperCLOVA X SEED Instruct 3B | ~8GB | Colab T4 (15GB) |
-| HyperCLOVA X SEED Instruct 0.5B | ~2GB | CPU 가능 |
-| Qwen2.5-7B-Instruct | ~14GB | Colab T4 |
-| Llama-3.2-3B-Instruct | ~6GB | Colab T4 |
+| 모델 | VRAM | 권장 환경 | 비고 |
+|------|------|-----------|------|
+| **HyperCLOVA X SEED Think-14B** | **~8-10GB** (4-bit) | **Colab T4 (15GB)** ✅ | 국산 LLM 최적 선택 |
+| HyperCLOVA X SEED Instruct 3B | ~8GB (fp16) | Colab T4 (15GB) | 빠른 추론 |
+| HyperCLOVA X SEED Think-32B | ~18GB (4-bit) | A100 40GB | 최고 품질 |
+| HyperCLOVA X SEED Instruct 0.5B | ~2GB | CPU 가능 | 가장 가벼움 |
+| Qwen2.5-7B-Instruct (Ollama) | ~14GB (fp16) | Colab T4 | 기본 데모용 |
+
+> **공공기관 프로젝트**: 국산 LLM 사용 요건 충족을 위해 `HyperCLOVA X SEED Think-14B`를 권장합니다.  
+> 16GB VRAM 환경에서 4-bit 양자화 시 8-10GB로 구동 가능합니다.
+>
+> ```bash
+> # Think-14B 실행 (vLLM + 4-bit 양자화)
+> LLM_MODEL=naver-hyperclovax/HyperCLOVA-X-SEED-Think-14B \
+> LLM_QUANTIZATION=bitsandbytes \
+> LLM_DTYPE=bfloat16 \
+> bash setup/start_vllm.sh
+> ```
 
 ---
 

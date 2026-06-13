@@ -14,21 +14,35 @@ set -e
 
 MODEL=${LLM_MODEL:-"naver-hyperclovax/HyperCLOVA-X-SEED-Instruct-3B"}
 PORT=${LLM_PORT:-8000}
-DTYPE=${LLM_DTYPE:-"half"}          # 16GB VRAM: half(fp16) 권장
+DTYPE=${LLM_DTYPE:-"half"}             # fp16 기본값
 MAX_LEN=${LLM_MAX_LEN:-4096}
-GPU_MEM=${LLM_GPU_MEM:-0.90}        # VRAM 90% 사용
+GPU_MEM=${LLM_GPU_MEM:-0.90}
+QUANTIZATION=${LLM_QUANTIZATION:-""}  # 14B 이상: bitsandbytes 권장
 
 echo "========================================"
 echo " vLLM API 서버 시작"
 echo " 모델  : $MODEL"
 echo " 포트  : $PORT"
 echo " dtype : $DTYPE"
+if [ -n "$QUANTIZATION" ]; then
+  echo " 양자화: $QUANTIZATION (4-bit)"
+fi
+echo "========================================"
+echo ""
+echo " VRAM 가이드:"
+echo "   Instruct-3B  → fp16  ~8GB    (T4 15GB OK)"
+echo "   Think-14B    → 4-bit ~8-10GB (T4 15GB OK, LLM_QUANTIZATION=bitsandbytes)"
+echo "   Think-32B    → 4-bit ~18GB   (A100 40GB 권장)"
 echo "========================================"
 
-# vLLM 설치 확인
 pip install vllm -q 2>/dev/null || true
 
-# 서버 실행
+# 양자화 옵션 구성
+QUANT_ARGS=""
+if [ -n "$QUANTIZATION" ]; then
+    QUANT_ARGS="--quantization $QUANTIZATION --load-format bitsandbytes"
+fi
+
 python -m vllm.entrypoints.openai.api_server \
     --model "$MODEL" \
     --host "0.0.0.0" \
@@ -37,4 +51,5 @@ python -m vllm.entrypoints.openai.api_server \
     --max-model-len "$MAX_LEN" \
     --gpu-memory-utilization "$GPU_MEM" \
     --trust-remote-code \
-    --served-model-name "$MODEL"
+    --served-model-name "$MODEL" \
+    $QUANT_ARGS

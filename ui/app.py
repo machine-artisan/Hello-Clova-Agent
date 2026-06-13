@@ -1,6 +1,15 @@
 """
 Gradio 웹 앱 — Local Deck Gen Agent UI
 
+# ── 프로젝트 루트를 sys.path에 추가 ──────────────────────────────────────────
+# 원인: `python ui/app.py` 실행 시 Python은 스크립트 위치(ui/)만 경로에 추가하며
+#       프로젝트 루트를 자동으로 추가하지 않습니다.
+#       이 코드가 없으면 `from agent.graph import graph`가 ModuleNotFoundError를 냅니다.
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+# ─────────────────────────────────────────────────────────────────────────────
+
 [개념] 웹서버(Web Server)란?
 이 파일이 웹서버 역할을 합니다. Gradio가 HTTP 서버를 내장하여 브라우저의 요청을 받고,
 에이전트 파이프라인(app server)에 작업을 위임한 뒤 결과를 HTML로 응답합니다.
