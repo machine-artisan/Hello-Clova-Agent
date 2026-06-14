@@ -249,23 +249,25 @@ with gr.Blocks(title="🗒️ Memo Deck Gen Agent") as demo:
                     p_title = gr.Textbox(
                         label="발표 제목",
                         placeholder="예: LangGraph 기반 AI 파이프라인 구축 전략",
+                        value="Memo Deck Gen Agent — 로컬 AI 슬라이드 자동 생성기",
                     )
                     p_pages = gr.Slider(
-                        minimum=3, maximum=20, step=1, value=8,
+                        minimum=3, maximum=20, step=1, value=10,
                         label="슬라이드 수",
                     )
                     p_purpose = gr.Dropdown(
                         choices=PURPOSE_OPTIONS,
-                        value=PURPOSE_OPTIONS[0],
+                        value="기술 소개 / 데모",
                         label="발표 목적",
                     )
                     p_audience = gr.Textbox(
                         label="대상 청중",
                         placeholder="예: 개발팀 리드, 기술 배경 있음",
+                        value="개발자 및 AI 프로젝트에 관심 있는 기술 담당자",
                     )
                     p_tone = gr.Dropdown(
                         choices=TONE_OPTIONS,
-                        value=TONE_OPTIONS[0],
+                        value="전문적이고 명확한",
                         label="톤",
                     )
                     p_topics = gr.Textbox(
@@ -279,10 +281,20 @@ with gr.Blocks(title="🗒️ Memo Deck Gen Agent") as demo:
                             "5. 다음 단계"
                         ),
                         lines=7,
+                        value=(
+                            "1. 프로젝트 개요 — Gamma·SkyAI 같은 슬라이드 자동 생성을 로컬에서 구현\n"
+                            "2. 기술 스택 — LangGraph, HyperCLOVA X SEED Think-14B, vLLM, Gradio, Reveal.js\n"
+                            "3. 시스템 아키텍처 — Gradio UI → LangGraph 4-노드 파이프라인 → vLLM API 서버\n"
+                            "4. 2-call 파이프라인 상세 — think_drafter(스토리 구상) + format_writer(포맷 변환)\n"
+                            "5. 데모 결과 — 실제 생성된 슬라이드 품질 및 소요 시간\n"
+                            "6. 한계 및 개선 방향 — 14B 4-bit 모델 포맷 일관성 문제와 해결 전략\n"
+                            "7. 다음 단계 — RAG 연동, 더 큰 모델 적용, 멀티 테마 지원"
+                        ),
                     )
                     p_style = gr.Textbox(
                         label="추가 스타일 가이드 (선택)",
                         placeholder="예: 파란 계열, 다이어그램 포함 권장",
+                        value="파란 계열 컬러, 아키텍처 다이어그램 포함 권장",
                     )
                     with gr.Row():
                         p_build_btn = gr.Button("⚡ 프롬프트 생성", variant="primary")
@@ -333,6 +345,20 @@ with gr.Blocks(title="🗒️ Memo Deck Gen Agent") as demo:
                             "..."
                         ),
                         lines=16,
+                        value=(
+                            '"Memo Deck Gen Agent — 로컬 AI 슬라이드 자동 생성기"을(를) 주제로 **10장** 분량의 프레젠테이션 슬라이드를 생성해 주세요.\n'
+                            "발표 목적: 기술 소개 / 데모\n"
+                            "대상 청중: 개발자 및 AI 프로젝트에 관심 있는 기술 담당자\n"
+                            "톤 & 스타일: 전문적이고 명확한, 파란 계열 컬러, 아키텍처 다이어그램 포함 권장\n\n"
+                            "포함할 주제 (순서대로):\n"
+                            "1. 프로젝트 개요 — Gamma·SkyAI 같은 슬라이드 자동 생성을 로컬에서 구현\n"
+                            "2. 기술 스택 — LangGraph, HyperCLOVA X SEED Think-14B, vLLM, Gradio, Reveal.js\n"
+                            "3. 시스템 아키텍처 — Gradio UI → LangGraph 4-노드 파이프라인 → vLLM API 서버\n"
+                            "4. 2-call 파이프라인 상세 — think_drafter(스토리 구상) + format_writer(포맷 변환)\n"
+                            "5. 데모 결과 — 실제 생성된 슬라이드 품질 및 소요 시간\n"
+                            "6. 한계 및 개선 방향 — 14B 4-bit 모델 포맷 일관성 문제와 해결 전략\n"
+                            "7. 다음 단계 — RAG 연동, 더 큰 모델 적용, 멀티 테마 지원"
+                        ),
                     )
                     with gr.Row():
                         g_gen_btn = gr.Button("🚀 슬라이드 생성", variant="primary")
