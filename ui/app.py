@@ -9,6 +9,14 @@ import os
 import time
 import threading
 import html as html_lib
+
+# .env 파일이 있으면 환경변수 로드 (없어도 무시 — Colab은 os.environ 직접 설정)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+except ImportError:
+    pass
+
 import gradio as gr
 from agent.graph import graph
 from agent.state import DeckState
