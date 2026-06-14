@@ -29,7 +29,7 @@ def get_model_name() -> str:
     )
 
 
-def chat(messages: list[dict], temperature: float = 0.7, max_tokens: int = 4096) -> str:
+def chat(messages: list[dict], temperature: float = 0.7, max_tokens: int = 2048) -> str:
     """LLM 채팅 완성 호출 — 모든 노드가 이 함수를 통해 LLM을 호출합니다."""
     client = get_client()
     response = client.chat.completions.create(

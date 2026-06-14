@@ -30,13 +30,13 @@ def generate_outline(state: DeckState) -> DeckState:
         temperature=0.3,
     )
 
-    # JSON 블록 추출 (LLM이 ```json ... ``` 감쌀 수 있음)
-    json_match = re.search(r"\{.*\}", raw, re.DOTALL)
-    if not json_match:
+    # 첫 번째 완전한 JSON 객체만 추출 (Think 모델이 JSON을 반복 출력할 수 있음)
+    start = raw.find("{")
+    if start == -1:
         return {**state, "error": f"목차 JSON 파싱 실패:\n{raw}", "status": "오류"}
 
     try:
-        outline = json.loads(json_match.group())
+        outline, _ = json.JSONDecoder().raw_decode(raw, start)
     except json.JSONDecodeError as e:
         return {**state, "error": f"목차 JSON 파싱 오류: {e}\n원문:\n{raw}", "status": "오류"}
 

@@ -226,22 +226,44 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </html>"""
 
 
+def _infer_slide_type(i: int, total: int, md: str) -> str:
+    """outline 없을 때 위치 + 내용으로 슬라이드 타입 추론"""
+    if i == 0:
+        return "cover"
+    if i == total - 1:
+        return "summary"
+    # 불릿이 없고 짧으면 section 슬라이드
+    if md and not re.search(r"^[-*]\s", md, re.MULTILINE) and len(md) < 200:
+        return "section"
+    return "content"
+
+
+def _extract_title(slides_md: list) -> str:
+    """outline 없을 때 첫 슬라이드 ## 제목에서 발표 제목 추출"""
+    if not slides_md:
+        return "발표 슬라이드"
+    m = re.search(r"^##\s+(.+)$", slides_md[0], re.MULTILINE)
+    return m.group(1).strip() if m else "발표 슬라이드"
+
+
 def render_html(state: DeckState) -> DeckState:
-    """Node 4: 마크다운 슬라이드 리스트 → Reveal.js HTML"""
+    """Node 3: 마크다운 슬라이드 리스트 → Reveal.js HTML"""
     if state.get("error"):
         return state
 
     slides_md = state["slides_md"]
     outline = state["outline"]
     slide_infos = outline.get("slides", [])
-    title = outline.get("title", "발표 슬라이드")
+    title = outline.get("title") or _extract_title(slides_md)
 
-    # 슬라이드 수 맞추기 (LLM이 목차보다 적거나 많이 생성할 수 있음)
-    n = max(len(slides_md), len(slide_infos))
+    n = len(slide_infos) if slide_infos else len(slides_md)
     sections = []
     for i in range(n):
         md = slides_md[i] if i < len(slides_md) else ""
-        info = slide_infos[i] if i < len(slide_infos) else {"type": "content"}
+        if i < len(slide_infos):
+            info = slide_infos[i]
+        else:
+            info = {"type": _infer_slide_type(i, n, md)}
         sections.append(build_section(md, info))
 
     slides_html = "\n\n".join(f"      {s}" for s in sections)
