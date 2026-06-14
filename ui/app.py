@@ -26,14 +26,16 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 # ─── 노드별 사용자 메시지 ──────────────────────────────────────────────────────
 NODE_LABELS = {
-    "input_parser":  ("📋", "[1/3] 입력 분석 완료"),
-    "slide_writer":  ("✍️", "[2/3] HCX가 슬라이드를 작성 중입니다 (최대 3분 소요)"),
-    "html_renderer": ("🎨", "[3/3] HTML 렌더링 중"),
+    "input_parser":  ("📋", "[1/4] 입력 분석 완료"),
+    "think_drafter": ("🤔", "[2/4] HCX가 스토리라인을 구상 중 (최대 2분 소요)"),
+    "format_writer": ("✍️",  "[3/4] 포맷 변환 중 (최대 1분 소요)"),
+    "html_renderer": ("🎨", "[4/4] HTML 렌더링 중"),
 }
 NODE_PROGRESS = {
     "input_parser":  0.05,
-    "slide_writer":  0.10,
-    "html_renderer": 0.92,
+    "think_drafter": 0.10,
+    "format_writer": 0.72,
+    "html_renderer": 0.94,
 }
 
 LOADING_HTML = (
@@ -99,6 +101,7 @@ def _run_graph_in_thread(prompt: str, shared: dict):
         "user_prompt": prompt,
         "num_slides": 10,
         "parsed_request": {},
+        "draft_content": "",
         "outline": {},
         "slides_md": [],
         "html_output": "",
@@ -159,7 +162,7 @@ def generate_deck(prompt: str, progress=gr.Progress()):
 
         pct = shared["node_progress"]
         # LLM 노드는 내부 경과에 따라 부드럽게 진행바 이동
-        if cur_node in ("outline_generator", "slide_writer"):
+        if cur_node in ("think_drafter", "format_writer"):
             pct = min(pct + node_elapsed / 200, pct + 0.40)
 
         label = shared["node_label"]

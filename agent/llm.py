@@ -11,7 +11,14 @@ vLLM이 OpenAI 호환 REST API를 로컬에서 제공합니다.
                  └────────────┘             └─────────────────┘
 """
 import os
+from pathlib import Path
 from openai import OpenAI
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env", override=False)
+except ImportError:
+    pass
 
 
 def get_client() -> OpenAI:

@@ -16,11 +16,12 @@ class DeckState(TypedDict):
     num_slides: int         # 생성할 슬라이드 수 (기본 10, 최대 20)
     parsed_request: dict    # 파싱된 요청 정보
 
-    # === Node 2 출력 (outline_generator) ===
-    outline: dict           # 슬라이드 목차 JSON
+    # === Node 2 출력 (think_drafter) ===
+    draft_content: str      # Think 모델이 자유 형식으로 구상한 슬라이드 스토리라인
 
-    # === Node 3 출력 (slide_writer) ===
-    slides_md: list         # 슬라이드별 마크다운 내용 리스트
+    # === Node 3 출력 (format_writer) ===
+    outline: dict           # 슬라이드 타입 정보 (html_renderer용)
+    slides_md: list         # 슬라이드별 마크다운 (===SLIDE_N=== 파싱 결과)
 
     # === Node 4 출력 (html_renderer) ===
     html_output: str        # 최종 Reveal.js HTML
