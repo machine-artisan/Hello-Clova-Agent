@@ -7,14 +7,18 @@ Node 4: html_renderer — Reveal.js HTML 생성
 import re
 from agent.state import DeckState
 
-# 슬라이드 타입별 배경색 (Flutter Material Design 3)
+# 슬라이드 타입별 배경색
 SLIDE_COLORS = {
     "cover":   {"bg": "#1565C0", "text": "#FFFFFF", "accent": "#90CAF9"},
+    "intro":   {"bg": "#F8F9FF", "text": "#212121", "accent": "#1565C0"},
     "section": {"bg": "#006A6A", "text": "#FFFFFF", "accent": "#80CBC4"},
     "content": {"bg": "#FFFFFF", "text": "#212121", "accent": "#1565C0"},
     "summary": {"bg": "#0D47A1", "text": "#FFFFFF", "accent": "#BBDEFB"},
 }
 DEFAULT_COLORS = SLIDE_COLORS["content"]
+
+# 영문 캐치프레이즈 감지: 대문자·숫자·공백·/ · - . 만으로 구성된 짧은 줄
+_CATCHPHRASE_RE = re.compile(r'^[A-Z][A-Z0-9 /\-\.]{1,47}[A-Z0-9]$')
 
 
 def _extract_mermaid_blocks(md_text: str) -> tuple[str, list[str]]:
@@ -57,6 +61,14 @@ def md_to_html(md_text: str) -> str:
             if in_ul:
                 html_parts.append("</ul>")
                 in_ul = False
+            continue
+
+        # 영문 캐치프레이즈 감지 (예: "PIPELINE DESIGN / OVERVIEW")
+        if _CATCHPHRASE_RE.match(line.strip()):
+            if in_ul:
+                html_parts.append("</ul>")
+                in_ul = False
+            html_parts.append(f'<div class="catchphrase">{line.strip()}</div>')
             continue
 
         if line.startswith("## "):
@@ -208,6 +220,36 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       color: var(--md-primary);
     }}
 
+    /* 영문 캐치프레이즈 (## 제목 위 타이포 레이어) */
+    .reveal .catchphrase {{
+      font-family: "JetBrains Mono", "Courier New", monospace;
+      font-size: 0.42em;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.58;
+      margin-bottom: 0.2em;
+      display: block;
+    }}
+    /* 다크/컬러 배경에서 캐치프레이즈 가시성 */
+    .reveal section[data-background-color="#1565C0"] .catchphrase,
+    .reveal section[data-background-color="#0D47A1"] .catchphrase,
+    .reveal section[data-background-color="#006A6A"] .catchphrase {{
+      opacity: 0.78;
+    }}
+
+    /* intro 슬라이드 강조 (흰 바탕 + 파란 상단 라인) */
+    .reveal section[data-background-color="#F8F9FF"] {{
+      border-top: 4px solid #1565C0;
+    }}
+    .reveal section[data-background-color="#F8F9FF"] h2 {{
+      border-color: #1565C0;
+      color: #1565C0;
+    }}
+    .reveal section[data-background-color="#F8F9FF"] ul li::before {{
+      color: #1565C0;
+    }}
+
     /* Mermaid 다이어그램 */
     .reveal .mermaid {{
       display: flex;
@@ -313,6 +355,8 @@ def _infer_slide_type(i: int, total: int, md: str) -> str:
     """outline 없을 때 위치 + 내용으로 슬라이드 타입 추론"""
     if i == 0:
         return "cover"
+    if i == 1 and total >= 4:
+        return "intro"
     if i == total - 1:
         return "summary"
     # 불릿이 없고 짧으면 section 슬라이드

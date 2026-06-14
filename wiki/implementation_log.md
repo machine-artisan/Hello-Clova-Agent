@@ -45,7 +45,7 @@ pip install vllm==0.19.1
 
 ---
 
-## 3. vLLM 서버 기동 명령 (현재 작동 확인된 명령)
+## 3. vLLM 서버 기동 명령 (현재 확인된 최적 설정)
 
 ```bash
 .venv/bin/python3 -m vllm.entrypoints.openai.api_server \
@@ -55,10 +55,15 @@ pip install vllm==0.19.1
   --dtype auto \
   --max-model-len 4096 \
   --gpu-memory-utilization 0.90 \
-  --enforce-eager \
   --quantization bitsandbytes \
   --load-format bitsandbytes \
   --served-model-name naver-hyperclovax/HyperCLOVAX-SEED-Think-14B
+  # --enforce-eager 없음 → CUDA Graph 활성 (+50% 속도)
+```
+
+또는 스크립트:
+```bash
+LLM_QUANTIZATION=bitsandbytes bash setup/start_vllm.sh
 ```
 
 **플래그 설명:**
@@ -68,12 +73,16 @@ pip install vllm==0.19.1
 | `--dtype auto` | 모델이 bfloat16 선언 → 자동 선택 |
 | `--max-model-len 4096` | 모델 최대 컨텍스트. 4096을 넘으면 OOM |
 | `--gpu-memory-utilization 0.90` | KV cache에 VRAM 90% 할당 |
-| `--enforce-eager` | CUDA Graph 비활성화 (vLLM 0.19.1 초기화 안정성) |
+| ~~`--enforce-eager`~~ | **제거됨** — CUDA Graph 활성화로 +50% 속도 향상 (21→32 tok/s) |
 | `--quantization bitsandbytes` | BnB 4-bit 양자화 (14B → ~10 GB VRAM) |
 | `--load-format bitsandbytes` | 위와 함께 필수 |
-| ~~`--trust-remote-code`~~ | **제거됨** — vLLM 0.19.1은 hyperclovax 내장 지원, 이 플래그 시 HF repo에서 config 파일 다운로드 시도 → 실패 |
+| ~~`--trust-remote-code`~~ | **제거됨** — vLLM 0.19.1 내장 지원, 이 플래그 사용 시 HF repo에서 없는 파일 다운로드 시도 → 실패 |
 
-**모델 초기 로딩**: BnB 4-bit 양자화 weight 로딩은 **30분+** 소요. 이후 HF 캐시에서 재로딩하면 훨씬 빠름.
+**모델 초기 로딩 시간** (실측):
+- BnB 4-bit weight 로딩: **~50초**
+- torch.compile (첫 기동): **~14초** (이후 캐시 재사용)
+- CUDA Graph 캡처 (51 piecewise + 35 full): **~1분**
+- **총 첫 기동: 약 2분** (이전 문서의 "30분+" 오류 수정)
 
 ---
 
@@ -334,6 +343,200 @@ vLLM 0.19.1은 이 모델을 내부적으로 지원하지만, AWQ/GPTQ 양자화
 
 1. **Think 모델 출력 반복**: `===SLIDE_N===` 중복 제거 로직이 필수. LLM 교체 시 이 로직이 불필요할 수 있음.
 2. **4096 토큰 컨텍스트 한도**: 입력 프롬프트가 길면 슬라이드 출력 품질 저하. 입력은 간결하게.
-3. **BnB 4-bit 첫 로딩 30분+**: 프로세스 kill 후 재기동 시 마찬가지로 오래 걸림. vLLM 프로세스를 가능한 유지할 것.
+3. **BnB 4-bit 첫 로딩**: 약 2분 소요 (torch.compile + CUDA Graph 포함). vLLM 프로세스를 가능한 유지할 것.
 4. **WSL2 네트워크**: WSL2 IP가 재부팅마다 바뀔 수 있음. `localhost`는 항상 유효.
 5. **Gradio script 경고**: `gr.HTML` 컴포넌트의 `<script>` 경고는 무시 가능 (iframe srcdoc은 정상 실행).
+6. **프롬프트 길이 증가**: DIRECT_SLIDE_SYSTEM에 언어규칙·내러티브구조·금지패턴 추가로 약 800 토큰 소비. max_tokens=2048 유지 권장.
+
+---
+
+## 11. Phase 2 — 덱 품질 개선 (2026-06-14)
+
+Phase 1이 "동작하는 파이프라인"이었다면, Phase 2는 "더 나은 덱"을 목표로 한 개선.
+
+---
+
+### 11-1. Mermaid.js 다이어그램 통합
+
+**배경**: 이미지 생성 모델 없이 흐름/구조를 시각화하는 방법 탐색.
+
+**결정**: Mermaid.js v11 CDN — 텍스트 기술 다이어그램, Reveal.js와 독립적으로 동작
+
+**구현 방식**:
+- `agent/nodes/html_renderer.py`: `_extract_mermaid_blocks()` 함수로 `:::mermaid...:::` 블록 파싱 → `<div class="mermaid">` 변환
+- HTML 템플릿 `<head>`에 Mermaid CDN + `mermaid.initialize()` 추가
+- Reveal.js `slidechanged` / `ready` 이벤트에서 `mermaid.render()` 비동기 호출
+- `securityLevel: 'loose'` — srcdoc iframe 내 정상 동작
+
+**srcdoc 이스케이핑 버그 수정** (동시 수정):
+```python
+# 이전 (불완전 — & 처리 안 함)
+safe_html = html.replace('"', "&quot;")
+
+# 현재 (완전)
+import html as html_lib
+safe_html = html_lib.escape(html, quote=True)
+```
+
+**지원 다이어그램 타입**: `flowchart` / `mindmap` / `gantt` / `timeline` / `sequenceDiagram`
+
+**LLM 출력 형식**:
+```
+:::mermaid
+flowchart LR
+  A[입력] --> B[처리] --> C[출력]
+:::
+```
+
+---
+
+### 11-2. Pretendard 한국어 폰트 적용
+
+**배경**: Roboto(영문 폰트)로는 한국어 가독성 미흡. 기업 프레젠테이션 품질 목표.
+
+**변경**:
+```html
+<!-- 이전 -->
+<link href="https://fonts.googleapis.com/.../Roboto...">
+
+<!-- 이후 -->
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+```
+
+CSS 폰트 스택:
+```css
+:root {
+  --font-ko: "Pretendard Variable", "Pretendard", "Noto Sans KR", "Noto Sans", sans-serif;
+}
+.reveal { font-family: var(--font-ko); }
+```
+
+future-slide(`template.html`) 조사 결과와 동일한 한국어 폰트 우선순위 채택.
+
+---
+
+### 11-3. 영문 캐치프레이즈 타이포그래피 시스템
+
+**배경**: imagegen 슬라이드 생성 프롬프트 분석에서 발견한 디자인 패턴.
+"## 제목 바로 위에 1~2단어 영문 캐치프레이즈" → 편집 디자인 레이어 감 부여.
+
+**구현**:
+```
+[LLM 출력]
+PIPELINE DESIGN / OVERVIEW
+## AI 파이프라인 구조
+
+[HTML 렌더링]
+<div class="catchphrase">PIPELINE DESIGN / OVERVIEW</div>
+<h2>AI 파이프라인 구조</h2>
+```
+
+감지 패턴 (`html_renderer.py`):
+```python
+_CATCHPHRASE_RE = re.compile(r'^[A-Z][A-Z0-9 /\-\.]{1,47}[A-Z0-9]$')
+```
+대문자·숫자·공백·`/`·`-`·`.`만으로 구성된 줄 → `<div class="catchphrase">`
+
+CSS: `JetBrains Mono`, `letter-spacing: 0.18em`, `opacity: 0.58`
+
+**프롬프트 규칙 추가**:
+- 슬라이드 2~N에 캐치프레이즈 필수 (표지 제외)
+- `COVER / INTRO / BODY` 같은 장르 명칭 금지 → 내용과 일치하는 구체적 단어
+
+---
+
+### 11-4. intro 슬라이드 타입 추가
+
+**배경**: imagegen 프롬프트의 Cover → Intro → Body → Outro 구조 채택.
+
+**변경** (`html_renderer.py`):
+```python
+SLIDE_COLORS = {
+    "cover":   {"bg": "#1565C0", ...},   # 기존
+    "intro":   {"bg": "#F8F9FF", ...},   # 신규 — 파란빛 흰 배경 + 상단 라인
+    "section": {"bg": "#006A6A", ...},   # 기존
+    "content": {"bg": "#FFFFFF", ...},   # 기존
+    "summary": {"bg": "#0D47A1", ...},   # 기존
+}
+
+def _infer_slide_type(i, total, md):
+    if i == 0:            return "cover"
+    if i == 1 and total >= 4: return "intro"   # 신규
+    if i == total - 1:    return "summary"
+    ...
+```
+
+---
+
+### 11-5. DIRECT_SLIDE_SYSTEM 대폭 개선
+
+Phase 1 대비 추가/변경된 프롬프트 규칙:
+
+| 규칙 | Phase 1 | Phase 2 |
+|------|---------|---------|
+| 언어 규칙 | 없음 | 한국어 주도 + 영어 고유명사 유지 |
+| 내러티브 구조 | 약식 | Cover→Intro→Body→Outro 명시 |
+| 캐치프레이즈 | 없음 | 슬라이드 2~N 필수, 구체적 단어 |
+| 불릿 수 | 3~5개 | **최대 3개** (정보 밀도 제한) |
+| 금지 패턴 | 없음 | 카드 나열 / 번호뱃지 흐름도 금지 |
+| 다이어그램 | 없음 | `:::mermaid` 블록 지원 |
+
+---
+
+### 11-6. future-slide 레포 분석 및 SWA 문서 체계
+
+**분석 대상**: `github.com/bytonylee/future-slide`
+- `site/index.html` — 랜딩 페이지 기술 요소 (llms.txt, Pretendard, i18n)
+- `skills/tightened-slide/assets/template.html` — **Custom Deck Engine** 발견 (Reveal.js 미사용)
+- `templates/DESIGN_TEMPLATE.md` — 10섹션 디자인 명세 포맷
+- `skills/tightened-slide/SKILL.md` — S01~S22 레이아웃 패밀리, 7단계 워크플로우
+
+**핵심 발견**: future-slide는 42줄 순수 JS로 슬라이드 엔진 직접 구현. Reveal.js 의존성 없음.
+→ 장기적으로 S01~S22 레이아웃 구현 시 Custom Engine 마이그레이션 검토.
+
+**생성된 SWA 문서** (`output/` 디렉토리):
+
+| 파일 | 내용 |
+|------|------|
+| `swa_01_system_overview.md` | 전체 시스템 개요 및 레이어 구조 |
+| `swa_02_agent_pipeline.md` | LangGraph 노드 설계 패턴 |
+| `swa_03_llm_integration.md` | vLLM + HyperCLOVA X 통합 가이드 |
+| `swa_04_notebook_console.md` | Colab .ipynb 콘솔 패턴 |
+| `swa_05_gradio_ui.md` | Gradio UI 패턴 (threading + yield) |
+| `swa_06_environment.md` | 환경 설정 및 복구 가이드 |
+| `swa_07_prompt_engineering.md` | 한국어 LLM 프롬프트 설계 |
+| `swa_08_future_slide_analysis.md` | future-slide index.html 분석 |
+| `swa_09_future_slide_deep_analysis.md` | template.html + SKILL.md 심층 분석 |
+| `swa_10_imagegen_prompt_analysis.md` | imagegen 프롬프트 접목 분석 |
+
+`sources/md/handoff_memo.md`: 다음 LLM 핸드오프 메모 (현재 상태 + 금지 사항 + 빠른 테스트)
+
+---
+
+### 11-7. Phase 2 커밋 이력
+
+| 커밋 | 내용 |
+|------|------|
+| `2470f1e` | 3-node 파이프라인, CUDA Graph, 히스토리 탭, 위키 초판 |
+| `e1e51a5` | Mermaid.js + Pretendard + srcdoc 수정 + SWA-08/09 |
+| `(미커밋)` | 캐치프레이즈 시스템 + intro 타입 + DIRECT_SLIDE_SYSTEM 개선 + SWA-10 |
+
+---
+
+## 12. Phase 2 이후 로드맵 (미구현)
+
+### 단기 (다음 세션)
+- [ ] Mermaid 통합 실제 덱 생성 테스트 (vLLM 재기동 후 end-to-end)
+- [ ] 캐치프레이즈 LLM 출력 품질 확인 (Think 모델이 올바르게 생성하는지)
+- [ ] `llms.txt` 프로젝트 루트 추가
+
+### 중기
+- [ ] 레이아웃 패밀리 8종 확장 (two-column, highlight, timeline, quote)
+- [ ] 테마 선택 UI (Gradio 슬라이더 — 라이트/다크/기업 테마)
+- [ ] 속도/품질 모드 토글 (1-call 빠름 / 2-call 고품질)
+
+### 장기
+- [ ] RAG 연동 (`sources/` 문서를 슬라이드 컨텍스트로 주입)
+- [ ] 이미지 에셋 사전 생성 + 보조 비주얼 연동
+- [ ] Custom Deck Engine (Reveal.js → future-slide 방식 마이그레이션)
+- [ ] AWQ 양자화 (Naver 공식 배포 대기)
