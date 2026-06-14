@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
 import time
 import threading
+import html as html_lib
 import gradio as gr
 from agent.graph import graph
 from agent.state import DeckState
@@ -179,7 +180,7 @@ def generate_deck(prompt: str, progress=gr.Progress()):
     out_path = OUTPUT_DIR / f"deck_{timestamp}.html"
     out_path.write_text(html, encoding="utf-8")
 
-    safe_html = html.replace('"', "&quot;")
+    safe_html = html_lib.escape(html, quote=True)
     iframe_html = (
         f'<iframe srcdoc="{safe_html}" '
         f'style="width:100%;height:600px;border:none;border-radius:8px;" '
@@ -214,7 +215,7 @@ def _load_deck(filename: str):
     if not path.exists():
         return f"<p style='color:red'>파일 없음: {filename}</p>", None
     html = path.read_text(encoding="utf-8")
-    safe_html = html.replace('"', "&quot;")
+    safe_html = html_lib.escape(html, quote=True)
     iframe = (
         f'<iframe srcdoc="{safe_html}" '
         f'style="width:100%;height:600px;border:none;border-radius:8px;" '

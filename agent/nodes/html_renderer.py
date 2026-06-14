@@ -2,7 +2,7 @@
 Node 4: html_renderer — Reveal.js HTML 생성
 
 [역할] LLM 호출 없이 순수 Python으로 마크다운 슬라이드를 Reveal.js HTML로 변환합니다.
-       Flutter 디자인 시스템 컬러와 Roboto 폰트를 적용합니다.
+       Pretendard 한국어 폰트, Flutter 색상 시스템, Mermaid.js 다이어그램을 지원합니다.
 """
 import re
 from agent.state import DeckState
@@ -17,14 +17,42 @@ SLIDE_COLORS = {
 DEFAULT_COLORS = SLIDE_COLORS["content"]
 
 
+def _extract_mermaid_blocks(md_text: str) -> tuple[str, list[str]]:
+    """:::mermaid ... ::: 블록을 추출하고 플레이스홀더로 대체.
+    반환: (플레이스홀더 치환된 텍스트, 다이어그램 코드 리스트)
+    """
+    diagrams: list[str] = []
+
+    def replacer(m: re.Match) -> str:
+        diagrams.append(m.group(1).strip())
+        return f"__MERMAID_{len(diagrams) - 1}__"
+
+    replaced = re.sub(r":::mermaid\n(.*?):::", replacer, md_text, flags=re.DOTALL)
+    return replaced, diagrams
+
+
 def md_to_html(md_text: str) -> str:
-    """간단한 마크다운 → HTML 변환 (외부 라이브러리 미사용)"""
+    """마크다운 → HTML 변환. :::mermaid 블록을 <div class='mermaid'>로 처리."""
+    md_text, diagrams = _extract_mermaid_blocks(md_text)
+
     lines = md_text.strip().splitlines()
     html_parts = []
     in_ul = False
 
     for line in lines:
         line = line.rstrip()
+
+        # Mermaid 플레이스홀더 복원
+        ph_match = re.match(r"^__MERMAID_(\d+)__$", line.strip())
+        if ph_match:
+            if in_ul:
+                html_parts.append("</ul>")
+                in_ul = False
+            idx = int(ph_match.group(1))
+            code = diagrams[idx].replace("<", "&lt;").replace(">", "&gt;")
+            html_parts.append(f'<div class="mermaid" style="margin:0.6em auto;max-height:46vh;overflow:hidden">{code}</div>')
+            continue
+
         if not line:
             if in_ul:
                 html_parts.append("</ul>")
@@ -35,26 +63,22 @@ def md_to_html(md_text: str) -> str:
             if in_ul:
                 html_parts.append("</ul>")
                 in_ul = False
-            title = line[3:].strip()
-            html_parts.append(f'<h2>{title}</h2>')
+            html_parts.append(f'<h2>{line[3:].strip()}</h2>')
         elif line.startswith("# "):
             if in_ul:
                 html_parts.append("</ul>")
                 in_ul = False
-            title = line[2:].strip()
-            html_parts.append(f'<h1>{title}</h1>')
+            html_parts.append(f'<h1>{line[2:].strip()}</h1>')
         elif line.startswith("### "):
             if in_ul:
                 html_parts.append("</ul>")
                 in_ul = False
-            title = line[4:].strip()
-            html_parts.append(f'<h3>{title}</h3>')
+            html_parts.append(f'<h3>{line[4:].strip()}</h3>')
         elif re.match(r"^[-*]\s+", line):
             if not in_ul:
                 html_parts.append('<ul>')
                 in_ul = True
             item = re.sub(r"^[-*]\s+", "", line)
-            # 인라인 볼드
             item = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", item)
             html_parts.append(f'<li>{item}</li>')
         else:
@@ -98,29 +122,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/white.css">
 
-  <!-- Google Fonts: Roboto (Flutter 공식 폰트) -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Google+Sans:wght@400;500;700&display=swap">
+  <!-- Pretendard (한국어 최적 폰트) -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+
+  <!-- Mermaid.js (다이어그램 지원) -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 
   <style>
-    /* ===== Flutter Design System Theme ===== */
+    /* ===== Design System ===== */
     :root {{
-      --md-primary:       #1565C0;
-      --md-secondary:     #006A6A;
-      --md-surface:       #FFFFFF;
-      --md-background:    #F8F9FF;
-      --md-on-primary:    #FFFFFF;
-      --md-on-surface:    #212121;
-      --md-outline:       #73777F;
+      --md-primary:    #1565C0;
+      --md-secondary:  #006A6A;
+      --md-surface:    #FFFFFF;
+      --md-background: #F8F9FF;
+      --md-on-primary: #FFFFFF;
+      --md-on-surface: #212121;
+      --md-outline:    #73777F;
+      --font-ko: "Pretendard Variable", "Pretendard", "Noto Sans KR", "Noto Sans", sans-serif;
     }}
 
     .reveal {{
-      font-family: 'Roboto', 'Google Sans', sans-serif;
+      font-family: var(--font-ko);
       font-size: 28px;
     }}
 
     /* 제목 */
     .reveal h1 {{
-      font-family: 'Google Sans', 'Roboto', sans-serif;
+      font-family: var(--font-ko);
       font-weight: 700;
       font-size: 1.8em;
       line-height: 1.2;
@@ -128,8 +157,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       text-shadow: none;
     }}
     .reveal h2 {{
-      font-family: 'Google Sans', 'Roboto', sans-serif;
-      font-weight: 500;
+      font-family: var(--font-ko);
+      font-weight: 600;
       font-size: 1.3em;
       border-bottom: 3px solid currentColor;
       padding-bottom: 0.2em;
@@ -170,7 +199,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       opacity: 0.9;
     }}
 
-    /* 흰색 슬라이드: 파란 강조 */
+    /* 흰색 슬라이드 강조색 */
     .reveal section[data-background-color="#FFFFFF"] h2 {{
       border-color: var(--md-primary);
       color: var(--md-primary);
@@ -179,26 +208,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       color: var(--md-primary);
     }}
 
-    /* 카드 스타일 (흰 배경) */
-    .reveal section[data-background-color="#FFFFFF"] .card {{
-      background: var(--md-background);
-      border-radius: 8px;
-      padding: 0.8em 1.2em;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-      margin: 0.4em 0;
+    /* Mermaid 다이어그램 */
+    .reveal .mermaid {{
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }}
+    .reveal .mermaid svg {{
+      max-height: 46vh;
+      width: auto;
+      max-width: 100%;
     }}
 
-    /* 진행률 바 */
-    .reveal .progress {{
-      color: #90CAF9;
-    }}
-
-    /* 슬라이드 번호 */
-    .reveal .slide-number {{
-      font-family: 'Roboto', sans-serif;
-      font-size: 14px;
-      opacity: 0.6;
-    }}
+    /* 진행률 바 / 슬라이드 번호 */
+    .reveal .progress {{ color: #90CAF9; }}
+    .reveal .slide-number {{ font-family: var(--font-ko); font-size: 14px; opacity: 0.6; }}
   </style>
 </head>
 <body>
@@ -210,6 +234,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
   <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
   <script>
+    /* Mermaid 초기화 — Reveal.js 준비 전에 설정 */
+    mermaid.initialize({{
+      startOnLoad: false,
+      theme: 'base',
+      themeVariables: {{
+        primaryColor: '#1565C0',
+        primaryTextColor: '#ffffff',
+        primaryBorderColor: '#1565C0',
+        lineColor: '#525252',
+        background: '#ffffff',
+        mainBkg: '#E3F2FD',
+        fontFamily: '"Pretendard Variable","Pretendard","Noto Sans KR",sans-serif',
+        fontSize: '15px',
+      }},
+      securityLevel: 'loose',
+      flowchart: {{ htmlLabels: true, curve: 'basis' }},
+    }});
+
     Reveal.initialize({{
       hash: true,
       slideNumber: 'c/t',
@@ -220,6 +262,47 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       center: true,
       width: 1280,
       height: 720,
+    }});
+
+    /* 슬라이드 전환 시마다 보이는 Mermaid 블록 렌더링 */
+    Reveal.on('slidechanged', async (event) => {{
+      const diagrams = event.currentSlide.querySelectorAll('.mermaid:not([data-processed])');
+      for (const el of diagrams) {{
+        try {{
+          const id = 'mermaid-' + Math.random().toString(36).slice(2);
+          const {{ svg }} = await mermaid.render(id, el.textContent.trim());
+          el.innerHTML = svg;
+          el.setAttribute('data-processed', 'true');
+        }} catch (e) {{
+          el.innerHTML = '<pre style="font-size:0.6em;color:#b71c1c">[다이어그램 오류] ' + e.message + '</pre>';
+          el.setAttribute('data-processed', 'true');
+        }}
+      }}
+    }});
+
+    /* 첫 슬라이드도 렌더링 */
+    Reveal.on('ready', async () => {{
+      const diagrams = document.querySelectorAll('.slides .slide.present .mermaid, .slides section.present .mermaid');
+      for (const el of diagrams) {{
+        if (el.getAttribute('data-processed')) continue;
+        try {{
+          const id = 'mermaid-init-' + Math.random().toString(36).slice(2);
+          const {{ svg }} = await mermaid.render(id, el.textContent.trim());
+          el.innerHTML = svg;
+          el.setAttribute('data-processed', 'true');
+        }} catch (e) {{
+          el.innerHTML = '<pre style="font-size:0.6em;color:#b71c1c">[다이어그램 오류] ' + e.message + '</pre>';
+        }}
+      }}
+      /* 첫 슬라이드가 present 클래스를 갖기 전일 수 있으므로 전체 대상 */
+      document.querySelectorAll('.mermaid:not([data-processed])').forEach(async (el) => {{
+        try {{
+          const id = 'mermaid-fb-' + Math.random().toString(36).slice(2);
+          const {{ svg }} = await mermaid.render(id, el.textContent.trim());
+          el.innerHTML = svg;
+          el.setAttribute('data-processed', 'true');
+        }} catch(e) {{}}
+      }});
     }});
   </script>
 </body>
