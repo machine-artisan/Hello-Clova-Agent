@@ -111,16 +111,20 @@ cp .env.example .env
 
 ## 지원 모델
 
-| 모델 | VRAM | 권장 환경 | 비고 |
-|------|------|-----------|------|
-| **HyperCLOVA X SEED Think-14B** | **~8-10GB** (4-bit) | **Colab T4 (15GB)** ✅ | 국산 LLM 최적 선택, dtype=half (T4는 bf16 미지원) |
-| HyperCLOVA X SEED Instruct 3B | ~8GB (fp16) | Colab T4 (15GB) | 빠른 추론 |
-| HyperCLOVA X SEED Think-32B | ~18GB (4-bit) | A100 40GB | 최고 품질 |
-| HyperCLOVA X SEED Instruct 0.5B | ~2GB | CPU 가능 | 가장 가벼움 |
-| Qwen2.5-7B-Instruct (Ollama) | ~14GB (fp16) | Colab T4 | 기본 데모용 |
+| 모델 | VRAM | 권장 환경 | 노트북 | 비고 |
+|------|------|-----------|--------|------|
+| **HyperCLOVA X SEED Text-Instruct-1.5B** | **~3GB** (fp16) | **Colab T4 Free ✅** | `HCX_1.5B_Colab.ipynb` | **T4 무료 최적**, 에러 1개, 로딩 ~2분 |
+| HyperCLOVA X SEED Think-14B | ~8-10GB (4-bit) | Colab T4 (Pro 권장) | `HCX14B_Colab.ipynb` | 국산 LLM 고품질, dtype=half |
+| HyperCLOVA X SEED Vision-Instruct-3B | ~7.5GB (fp16) | Colab T4 (15GB) | — | 멀티모달, 커스텀 vLLM fork 필요 |
+| HyperCLOVA X SEED Text-Instruct-0.5B | ~1.2GB (fp16) | CPU 가능 | — | 가장 가벼움 |
+| HyperCLOVA X SEED Think-32B | ~18GB (4-bit) | A100 40GB | — | 최고 품질 |
+| Qwen2.5-7B-Instruct (Ollama) | ~14GB (fp16) | Colab T4 | `Colab.ipynb` | 기본 데모용, 설치 최단 |
 
-> **공공기관 프로젝트**: 국산 LLM 사용 요건 충족을 위해 `HyperCLOVA X SEED Think-14B`를 권장합니다.  
-> 16GB VRAM 환경에서 4-bit 양자화 시 8-10GB로 구동 가능합니다.
+> **Colab T4 무료 환경** → `Hello_Clova_Agent_HCX_1.5B_Colab.ipynb`  
+> 에러 3개 → 1개, 로딩 20분 → 2분. 체험 우선 시 권장.
+>
+> **국산 LLM 고품질 (공공기관)** → `Hello_Clova_Agent_HCX14B_Colab.ipynb`  
+> Colab Pro (고메모리 런타임) 또는 A100 환경 권장.
 >
 > ```bash
 > # Think-14B 실행 (vLLM + 4-bit 양자화, T4용)

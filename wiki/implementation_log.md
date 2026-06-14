@@ -523,7 +523,74 @@ Phase 1 대비 추가/변경된 프롬프트 규칙:
 
 ---
 
-## 12. Phase 2 이후 로드맵 (미구현)
+## 12. HCX Text-Instruct-1.5B Colab 노트북 추가 (2026-06-14)
+
+### 배경
+
+HyperCLOVA X SEED Think-14B Colab 노트북(`HCX14B_Colab.ipynb`)은
+vLLM + 4-bit 양자화 + transformers>=5.9.0 의존성으로 인해
+Colab T4 환경에서 3가지 독립 에러가 발생했다.
+
+| 에러 | 원인 | 계층 |
+|------|------|------|
+| `libcudart.so.13` ABI 불일치 | vLLM PyPI 휠이 CUDA 13 기준 컴파일, Colab은 CUDA 12.x 제공 | 시스템 |
+| `bfloat16 not supported` | T4 Compute 7.5 = float16만 지원 | GPU 하드웨어 |
+| `Could not import ProcessorMixin` | HCX 모델이 transformers>=5.9.0 요구, Colab 기본값 구버전 | Python 패키지 |
+
+HyperCLOVAX-SEED-Text-Instruct-1.5B로 전환 시 에러 3→1개로 감소
+(libcudart 에러만 남음, apt 한 줄 해결).
+
+### 신규 파일
+
+`Hello_Clova_Agent_HCX_1.5B_Colab.ipynb`
+
+### 14B 대비 셀 1 변경 내역
+
+**제거된 설치:**
+```python
+# 14B에서 필요했던 것 — 1.5B에서는 삭제
+pip install transformers>=5.9.0   # 표준 버전으로 동작
+pip install bitsandbytes           # 양자화 없음
+```
+
+**제거된 vLLM 플래그:**
+```
+--quantization bitsandbytes   # 4-bit 불필요
+--load-format bitsandbytes    # 위와 세트
+--enforce-eager               # CUDA Graph 정상 동작 (소형 모델)
+--trust-remote-code           # 표준 아키텍처, 불필요
+```
+
+**유지된 것:**
+```
+apt-get install cuda-cudart-13-0   # vLLM ABI 문제는 모델 크기 무관
+--dtype half                        # T4 float16 제약은 모든 모델 공통
+```
+
+### 셀 4 변경: MAX_WAIT 1200s → 300s
+
+14B는 모델 다운로드+로딩 20~40분 → 1200s 대기.
+1.5B는 다운로드 ~1분 + 로딩 즉시 → 300s(5분)으로 단축.
+
+### HF_TOKEN 정책 변경
+
+14B는 gated model로 HF_TOKEN 미설정 시 `RuntimeError` 발생.
+1.5B는 공개 모델 → HF_TOKEN 선택(optional)으로 완화, 미설정 시 익명 다운로드 진행.
+
+### 노트북 구조 (5셀, 14B와 동일)
+
+```
+셀 1/5: CUDA 13 설치 + vLLM 설치(간소화) + 서버 백그라운드 시작
+셀 2/5: git clone / pull
+셀 3/5: requirements.txt 설치 + 환경변수 (LLM_MODEL=1.5B ID)
+셀 4/5: 서버 준비 대기 (최대 5분)
+셀 5/5: python ui/app.py 실행
+[선택] Phase 2: BAAI/bge-m3 임베딩 모델 (RAG 준비)
+```
+
+---
+
+## 13. Phase 2 이후 로드맵 (미구현)
 
 ### 단기 (다음 세션)
 - [ ] Mermaid 통합 실제 덱 생성 테스트 (vLLM 재기동 후 end-to-end)
