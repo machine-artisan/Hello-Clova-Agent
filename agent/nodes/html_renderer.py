@@ -26,12 +26,13 @@ def _extract_mermaid_blocks(md_text: str) -> tuple[str, list[str]]:
     반환: (플레이스홀더 치환된 텍스트, 다이어그램 코드 리스트)
     """
     diagrams: list[str] = []
+    md_text = md_text.replace("\r\n", "\n").replace("\r", "\n")
 
     def replacer(m: re.Match) -> str:
         diagrams.append(m.group(1).strip())
         return f"__MERMAID_{len(diagrams) - 1}__"
 
-    replaced = re.sub(r":::mermaid\n(.*?):::", replacer, md_text, flags=re.DOTALL)
+    replaced = re.sub(r":::mermaid[ \t]*\n(.*?)(?:\n[ \t]*)?:::", replacer, md_text, flags=re.DOTALL)
     return replaced, diagrams
 
 

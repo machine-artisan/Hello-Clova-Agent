@@ -31,6 +31,9 @@ def write_slides(state: DeckState) -> DeckState:
         max_tokens=2048,
     )
 
+    # Think 모델이 마지막에 추가하는 "assistant\n설명" 누출 제거
+    raw = re.sub(r"\nassistant\b.*$", "", raw, flags=re.DOTALL | re.IGNORECASE).strip()
+
     # ===SLIDE_N=== 구분자로 분리 — Think 모델 반복 출력 대응: 번호 첫 등장만 사용
     blocks = re.findall(r"===SLIDE_(\d+)===(.*?)(?====SLIDE_\d+===|$)", raw, re.DOTALL)
     seen: set[str] = set()
@@ -38,7 +41,8 @@ def write_slides(state: DeckState) -> DeckState:
     for num_str, content in blocks:
         if num_str not in seen:
             seen.add(num_str)
-            c = content.strip()
+            # 슬라이드 내에서도 "assistant" 이후 설명 텍스트 제거
+            c = re.sub(r"\nassistant\b.*$", "", content, flags=re.DOTALL | re.IGNORECASE).strip()
             if c:
                 slides_md.append(c)
 
